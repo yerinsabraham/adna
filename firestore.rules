@@ -1,0 +1,82 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isMerchant(merchantId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/merchants/$(merchantId)) &&
+             get(/databases/$(database)/documents/merchants/$(merchantId)).data.userId == request.auth.uid;
+    }
+    
+    // Merchants collection
+    match /merchants/{merchantId} {
+      // Allow read if authenticated user owns this merchant profile
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Allow create only if authenticated and creating for self
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.email == request.auth.token.email;
+      
+      // Allow update only if owner and not changing userId or email
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid &&
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.email == resource.data.email;
+      
+      // Prevent deletion (merchants should be deactivated, not deleted)
+      allow delete: if false;
+    }
+    
+    // Payment Requests collection
+    match /paymentRequests/{paymentId} {
+      // Allow read if merchant owns this payment request
+      allow read: if isAuthenticated() && resource.data.merchantId == request.auth.uid;
+      
+      // Allow create only if authenticated merchant creating for themselves
+      allow create: if isAuthenticated() && 
+                       request.resource.data.merchantId == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+      
+      // Allow update only by owner, and only specific fields
+      allow update: if isAuthenticated() && 
+                       resource.data.merchantId == request.auth.uid &&
+                       // Allow status updates for payment flow
+                       request.resource.data.merchantId == resource.data.merchantId &&
+                       request.resource.data.createdAt == resource.data.createdAt;
+      
+      // Prevent deletion (keep for records)
+      allow delete: if false;
+    }
+    
+    // Transactions collection
+    match /transactions/{transactionId} {
+      // Allow read if merchant owns this transaction
+      allow read: if isAuthenticated() && resource.data.merchantId == request.auth.uid;
+      
+      // Allow create only by system/cloud functions
+      allow create: if false;
+      
+      // Prevent updates (transactions are immutable)
+      allow update: if false;
+      
+      // Prevent deletion (keep for records)
+      allow delete: if false;
+    }
+    
+    // Block all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

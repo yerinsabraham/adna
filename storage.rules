@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidFileSize() {
+      // Max file size: 5MB
+      return request.resource.size <= 5 * 1024 * 1024;
+    }
+    
+    function isValidImageType() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isValidDocumentType() {
+      return request.resource.contentType.matches('image/.*') || 
+             request.resource.contentType == 'application/pdf';
+    }
+    
+    // KYC documents - only allow uploads by the merchant who owns the document
+    match /kyc/{userId}/{allPaths=**} {
+      // Allow read only if owner
+      allow read: if isOwner(userId);
+      
+      // Allow upload only if:
+      // 1. Authenticated user is the owner
+      // 2. File size is within limit (5MB)
+      // 3. File type is valid (images or PDF)
+      allow create: if isOwner(userId) && 
+                       isValidFileSize() && 
+                       isValidDocumentType();
+      
+      // Allow update/replace only by owner
+      allow update: if isOwner(userId) && 
+                       isValidFileSize() && 
+                       isValidDocumentType();
+      
+      // Prevent deletion (keep for audit trail)
+      allow delete: if false;
+    }
+    
+    // Block all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
