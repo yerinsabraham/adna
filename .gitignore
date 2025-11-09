@@ -99,5 +99,10 @@ lib/generated_plugin_registrant.dart
 .env.local
 .env.*.local
 
-# Firebase
+# Firebase - Keep these files local, don't push to GitHub
 firebase_options.dart
+google-services.json
+android/app/google-services.json
+android/google-services.json
+ios/Runner/GoogleService-Info.plist
+.firebaserc
