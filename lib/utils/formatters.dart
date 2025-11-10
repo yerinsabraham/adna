@@ -54,6 +54,12 @@ class Formatters {
     return DateFormat('MMM dd, yyyy').format(date);
   }
 
+  /// Formats timestamp (date and time)
+  /// Example: Nov 08, 2025 02:30 PM
+  static String formatTimestamp(DateTime date) {
+    return DateFormat('MMM dd, yyyy hh:mm a').format(date);
+  }
+
   /// Formats time only
   /// Example: 02:30 PM
   static String formatTime(DateTime date) {

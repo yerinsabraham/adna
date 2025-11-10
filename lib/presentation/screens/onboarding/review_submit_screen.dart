@@ -204,7 +204,7 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: CustomButton(
-                      text: 'Submit Application',
+                      text: 'Submit',
                       onPressed: _handleSubmit,
                       fullWidth: true,
                     ),

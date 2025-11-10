@@ -145,6 +145,30 @@ class AppConstants {
     'Zenith Bank',
   ];
 
+  // Nigerian Banks with Paystack Bank Codes
+  static const Map<String, String> nigerianBankCodes = {
+    'Access Bank': '044',
+    'Ecobank': '050',
+    'Fidelity Bank': '070',
+    'First Bank': '011',
+    'First City Monument Bank (FCMB)': '214',
+    'GTBank': '058',
+    'Keystone Bank': '082',
+    'Polaris Bank': '076',
+    'Stanbic IBTC': '221',
+    'Sterling Bank': '232',
+    'Union Bank': '032',
+    'United Bank for Africa (UBA)': '033',
+    'Unity Bank': '215',
+    'Wema Bank': '035',
+    'Zenith Bank': '057',
+  };
+
+  /// Get bank code for bank name
+  static String getBankCode(String bankName) {
+    return nigerianBankCodes[bankName] ?? '000';
+  }
+
   // Nigerian States
   static const List<String> nigerianStates = [
     'Abia',
@@ -212,6 +236,78 @@ class AppConstants {
   static const String tierBasic = 'basic';
   static const String tierBusiness = 'business';
   static const String tierEnterprise = 'enterprise';
+
+  // Merchant Tier Details with Limits
+  static const Map<String, Map<String, dynamic>> merchantTiers = {
+    tierBasic: {
+      'name': 'Basic (Individual)',
+      'description': 'For individuals without registered business',
+      'dailyLimit': 1000000, // ₦1M daily
+      'monthlyLimit': 10000000, // ₦10M monthly
+      'requiresCAC': false,
+      'requiresBusinessInfo': false,
+      'verificationLevel': 'basic',
+    },
+    tierBusiness: {
+      'name': 'Business (BN)',
+      'description': 'For registered business names',
+      'dailyLimit': 20000000, // ₦20M daily
+      'monthlyLimit': 200000000, // ₦200M monthly
+      'requiresCAC': true,
+      'requiresBusinessInfo': true,
+      'verificationLevel': 'business',
+    },
+    tierEnterprise: {
+      'name': 'Enterprise (RC)',
+      'description': 'For registered companies (Limited)',
+      'dailyLimit': 100000000, // ₦100M daily
+      'monthlyLimit': 1000000000, // ₦1B monthly
+      'requiresCAC': true,
+      'requiresBusinessInfo': true,
+      'verificationLevel': 'enterprise',
+    },
+  };
+
+  // Business Registration Types
+  static const String regTypeIndividual = 'individual';
+  static const String regTypeBusinessName = 'business_name';
+  static const String regTypeLimitedCompany = 'limited_company';
+
+  static const Map<String, Map<String, dynamic>> businessRegistrationTypes = {
+    regTypeIndividual: {
+      'label': 'Individual (No Business Registration)',
+      'description': 'I don\'t have a registered business',
+      'tier': tierBasic,
+      'icon': '👤',
+    },
+    regTypeBusinessName: {
+      'label': 'Business Name (BN)',
+      'description': 'Registered business name with CAC',
+      'tier': tierBusiness,
+      'icon': '🏪',
+    },
+    regTypeLimitedCompany: {
+      'label': 'Limited Company (RC)',
+      'description': 'Registered company (Ltd, PLC, etc)',
+      'tier': tierEnterprise,
+      'icon': '🏢',
+    },
+  };
+
+  /// Get tier details
+  static Map<String, dynamic> getTierDetails(String tier) {
+    return merchantTiers[tier] ?? merchantTiers[tierBasic]!;
+  }
+
+  /// Get daily limit for tier
+  static double getDailyLimit(String tier) {
+    return (merchantTiers[tier]?['dailyLimit'] ?? basicDailyLimit).toDouble();
+  }
+
+  /// Get monthly limit for tier
+  static double getMonthlyLimit(String tier) {
+    return (merchantTiers[tier]?['monthlyLimit'] ?? basicMonthlyLimit).toDouble();
+  }
 
   // Test Crypto Addresses (for mock service)
   static const String testBTCAddress = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';

@@ -102,6 +102,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
+              
               // Account Section
               _buildSectionTitle('Account'),
               const SizedBox(height: 8),
@@ -259,9 +260,10 @@ class SettingsScreen extends StatelessWidget {
     IconData icon,
     VoidCallback onTap, {
     bool isDestructive = false,
+    Color? color,
   }) {
-    final color = isDestructive ? AppColors.error : AppColors.textPrimary;
-    final iconColor = isDestructive ? AppColors.error : AppColors.primary;
+    final textColor = isDestructive ? AppColors.error : AppColors.textPrimary;
+    final iconColor = color ?? (isDestructive ? AppColors.error : AppColors.primary);
 
     return InkWell(
       onTap: onTap,
@@ -292,7 +294,7 @@ class SettingsScreen extends StatelessWidget {
                     title,
                     style: AppTextStyles.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: color,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 2),

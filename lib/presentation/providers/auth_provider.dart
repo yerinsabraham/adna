@@ -90,14 +90,17 @@ class AuthProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
 
+      print('🔵 AuthProvider: Calling signInWithEmailAndPassword...');
       await _authService.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
+      print('🟢 AuthProvider: Sign in successful!');
       _setLoading(false);
       return true;
     } catch (e) {
+      print('🔴 AuthProvider: Sign in error: $e');
       _setError(e.toString());
       _setLoading(false);
       return false;

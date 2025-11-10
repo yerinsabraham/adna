@@ -53,12 +53,16 @@ class _BankAccountScreenState extends State<BankAccountScreen> {
 
     _accountNumberController.text = data['bankAccountNumber'] ?? '';
     _accountNameController.text = data['bankAccountName'] ?? '';
-    _selectedBankCode = data['bankCode'];
     _selectedBankName = data['bankName'];
+    
+    // Set bank code from bank name if available
+    if (_selectedBankName != null) {
+      _selectedBankCode = AppConstants.getBankCode(_selectedBankName!);
+    }
   }
 
   Future<void> _verifyAccount() async {
-    if (_selectedBankCode == null) {
+    if (_selectedBankCode == null || _selectedBankName == null) {
       Helpers.showError(context, 'Please select a bank');
       return;
     }
@@ -73,14 +77,14 @@ class _BankAccountScreenState extends State<BankAccountScreen> {
     });
 
     // In production, this would call Paystack or another bank verification API
-    // For now, simulate verification
+    // For now, simulate verification with a realistic account name
     await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) {
       setState(() {
         _isVerifying = false;
-        // Simulate verified account name
-        _accountNameController.text = 'VERIFIED ACCOUNT NAME';
+        // Simulate verified account name (realistic format)
+        _accountNameController.text = 'JOHN DOE ENTERPRISES';
       });
 
       Helpers.showSuccess(context, 'Account verified successfully');
@@ -145,6 +149,8 @@ class _BankAccountScreenState extends State<BankAccountScreen> {
               onChanged: (value) {
                 setState(() {
                   _selectedBankName = value;
+                  // Set bank code when bank is selected
+                  _selectedBankCode = value != null ? AppConstants.getBankCode(value) : null;
                   // Clear account name when bank changes
                   _accountNameController.clear();
                 });
@@ -177,11 +183,12 @@ class _BankAccountScreenState extends State<BankAccountScreen> {
               fullWidth: true,
             ),
             const SizedBox(height: 16),
-            // Account Name (read-only, populated after verification)
+            // Account Name (populated after verification, can be edited if needed)
             CustomTextField(
               label: 'Account Name',
               hint: 'Account name will appear after verification',
-              controller: _accountNameController,readOnly: true,
+              controller: _accountNameController,
+              enabled: _accountNameController.text.isNotEmpty,
               validator: (value) => Validators.required(value, 'Account name'),
             ),
             if (_accountNameController.text.isNotEmpty) ...[

@@ -3,78 +3,350 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // ========== HELPER FUNCTIONS ==========
+    
     function isAuthenticated() {
       return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'yerinssaibs@gmail.com';
     }
     
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function isMerchant(merchantId) {
+    function isMerchantOwner(merchantId) {
       return isAuthenticated() && 
              exists(/databases/$(database)/documents/merchants/$(merchantId)) &&
              get(/databases/$(database)/documents/merchants/$(merchantId)).data.userId == request.auth.uid;
     }
     
-    // Merchants collection
-    match /merchants/{merchantId} {
-      // Allow read if authenticated user owns this merchant profile
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      
-      // Allow create only if authenticated and creating for self
-      allow create: if isAuthenticated() && 
-                       request.resource.data.userId == request.auth.uid &&
-                       request.resource.data.email == request.auth.token.email;
-      
-      // Allow update only if owner and not changing userId or email
-      allow update: if isAuthenticated() && 
-                       resource.data.userId == request.auth.uid &&
-                       request.resource.data.userId == resource.data.userId &&
-                       request.resource.data.email == resource.data.email;
-      
-      // Prevent deletion (merchants should be deactivated, not deleted)
-      allow delete: if false;
+    function merchantExists(merchantId) {
+      return exists(/databases/$(database)/documents/merchants/$(merchantId));
     }
     
-    // Payment Requests collection
-    match /paymentRequests/{paymentId} {
-      // Allow read if merchant owns this payment request
-      allow read: if isAuthenticated() && resource.data.merchantId == request.auth.uid;
+    // ========== MERCHANTS COLLECTION ==========
+    match /merchants/{merchantId} {
+      // READ: User can read own data, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.email == request.auth.token.email ||
+        isAdmin()
+      );
       
-      // Allow create only if authenticated merchant creating for themselves
+      // CREATE: User can create own profile, must match auth
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.email == request.auth.token.email
+      ) && request.resource.data.keys().hasAll(['email', 'userId', 'kycStatus']);
+      
+      // UPDATE: User can update own data, Admin can update any (for approval/rejection)
+      allow update: if isAuthenticated() && (
+        (resource.data.userId == request.auth.uid && 
+         request.resource.data.userId == resource.data.userId) || // User updating own
+        isAdmin() // Admin can update any
+      );
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== TRANSACTIONS COLLECTION ==========
+    match /transactions/{transactionId} {
+      // READ: Merchant can read own transactions, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid || 
+        isAdmin()
+      );
+      
+      // CREATE: Merchants and system can create transactions
+      allow create: if isAuthenticated() && (
+        request.resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // UPDATE: Merchant can update own transactions, Admin can update any
+      allow update: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== PAYMENT LINKS COLLECTION ==========
+    match /paymentLinks/{linkId} {
+      // READ: Public can read payment links (for payment pages)
+      allow read: if true;
+      
+      // CREATE: Authenticated merchants can create
+      allow create: if isAuthenticated() && (
+        request.resource.data.merchantId == request.auth.uid
+      );
+      
+      // UPDATE: Merchant can update own links, Admin can update any
+      allow update: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // DELETE: Merchant can delete own links, Admin can delete any
+      allow delete: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // ========== PAYMENT REQUESTS COLLECTION ==========
+    match /paymentRequests/{paymentId} {
+      // READ: Merchant can read own requests, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid || 
+        isAdmin()
+      );
+      
+      // CREATE: Merchant can create own requests
       allow create: if isAuthenticated() && 
                        request.resource.data.merchantId == request.auth.uid &&
                        request.resource.data.status == 'pending';
       
-      // Allow update only by owner, and only specific fields
+      // UPDATE: Merchant can update own requests, Admin can update any
+      allow update: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== SETTLEMENTS COLLECTION ==========
+    match /settlements/{settlementId} {
+      // READ: Merchant can read own settlements, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Only admin/system can create settlements
+      allow create: if isAdmin();
+      
+      // UPDATE: Only admin can update
+      allow update: if isAdmin();
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== INVOICES COLLECTION ==========
+    match /invoices/{invoiceId} {
+      // READ: Merchant can read own invoices, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Merchants can create invoices
+      allow create: if isAuthenticated() && 
+                       request.resource.data.merchantId == request.auth.uid;
+      
+      // UPDATE: Merchant can update own invoices, Admin can update any
+      allow update: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // DELETE: Merchant can delete own invoices, Admin can delete any
+      allow delete: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // ========== BILLING COLLECTION ==========
+    match /billing/{billingId} {
+      // READ: Merchant can read own billing, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: System/Admin creates billing records
+      allow create: if isAdmin();
+      
+      // UPDATE: Only admin can update
+      allow update: if isAdmin();
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== NOTIFICATIONS COLLECTION ==========
+    match /notifications/{notificationId} {
+      // READ: User can read own notifications
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // CREATE: System can create notifications
+      allow create: if isAuthenticated();
+      
+      // UPDATE: User can mark own notifications as read
       allow update: if isAuthenticated() && 
-                       resource.data.merchantId == request.auth.uid &&
-                       // Allow status updates for payment flow
-                       request.resource.data.merchantId == resource.data.merchantId &&
-                       request.resource.data.createdAt == resource.data.createdAt;
+                       resource.data.userId == request.auth.uid;
       
-      // Prevent deletion (keep for records)
-      allow delete: if false;
+      // DELETE: User can delete own notifications
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
     }
     
-    // Transactions collection
-    match /transactions/{transactionId} {
-      // Allow read if merchant owns this transaction
-      allow read: if isAuthenticated() && resource.data.merchantId == request.auth.uid;
+    // ========== ANALYTICS COLLECTION ==========
+    match /analytics/{analyticsId} {
+      // READ: Merchant can read own analytics, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
       
-      // Allow create only by system/cloud functions
-      allow create: if false;
+      // CREATE: System creates analytics
+      allow create: if isAdmin();
       
-      // Prevent updates (transactions are immutable)
-      allow update: if false;
+      // UPDATE: System updates analytics
+      allow update: if isAdmin();
       
-      // Prevent deletion (keep for records)
-      allow delete: if false;
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
     }
     
-    // Block all other paths
+    // ========== PLATFORM STATS (ADMIN ONLY) ==========
+    match /platformStats/{statId} {
+      // READ: Only admin
+      allow read: if isAdmin();
+      
+      // WRITE: Only admin/system
+      allow write: if isAdmin();
+    }
+    
+    // ========== API KEYS COLLECTION ==========
+    match /apiKeys/{keyId} {
+      // READ: Merchant can read own keys, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Merchants can create own keys
+      allow create: if isAuthenticated() && 
+                       request.resource.data.merchantId == request.auth.uid;
+      
+      // UPDATE: Merchant can update own keys
+      allow update: if isAuthenticated() && 
+                       resource.data.merchantId == request.auth.uid;
+      
+      // DELETE: Merchant can delete own keys, Admin can delete any
+      allow delete: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // ========== WEBHOOKS COLLECTION ==========
+    match /webhooks/{webhookId} {
+      // READ: Merchant can read own webhooks, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Merchants can create webhooks
+      allow create: if isAuthenticated() && 
+                       request.resource.data.merchantId == request.auth.uid;
+      
+      // UPDATE: Merchant can update own webhooks
+      allow update: if isAuthenticated() && 
+                       resource.data.merchantId == request.auth.uid;
+      
+      // DELETE: Merchant can delete own webhooks
+      allow delete: if isAuthenticated() && 
+                       resource.data.merchantId == request.auth.uid;
+    }
+    
+    // ========== DISPUTES COLLECTION ==========
+    match /disputes/{disputeId} {
+      // READ: Merchant can read disputes related to them, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Anyone can create disputes
+      allow create: if true;
+      
+      // UPDATE: Only admin can update disputes
+      allow update: if isAdmin();
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== REFUNDS COLLECTION ==========
+    match /refunds/{refundId} {
+      // READ: Merchant can read own refunds, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Merchants and admin can create refunds
+      allow create: if isAuthenticated() && (
+        request.resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // UPDATE: Only admin can update refunds
+      allow update: if isAdmin();
+      
+      // DELETE: Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========== REPORTS COLLECTION ==========
+    match /reports/{reportId} {
+      // READ: Merchant can read own reports, Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // CREATE: Merchants can generate reports
+      allow create: if isAuthenticated() && 
+                       request.resource.data.merchantId == request.auth.uid;
+      
+      // UPDATE: System/Admin updates reports
+      allow update: if isAdmin();
+      
+      // DELETE: Merchant can delete own reports, Admin can delete any
+      allow delete: if isAuthenticated() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // ========== AUDIT LOGS (ADMIN ONLY) ==========
+    match /auditLogs/{logId} {
+      // READ: Only admin
+      allow read: if isAdmin();
+      
+      // CREATE: System creates logs
+      allow create: if isAuthenticated();
+      
+      // UPDATE/DELETE: Never (immutable audit trail)
+      allow update, delete: if false;
+    }
+    
+    // ========== BLOCK ALL OTHER COLLECTIONS ==========
     match /{document=**} {
       allow read, write: if false;
     }

@@ -137,6 +137,10 @@ class Merchant {
   final String tier;
   final double dailyLimit;
   final double monthlyLimit;
+  final String registrationType; // individual, business_name, limited_company
+  
+  // Admin Access
+  final bool isAdmin;
 
   Merchant({
     required this.id,
@@ -169,6 +173,8 @@ class Merchant {
     required this.tier,
     required this.dailyLimit,
     required this.monthlyLimit,
+    required this.registrationType,
+    this.isAdmin = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -203,6 +209,8 @@ class Merchant {
       'tier': tier,
       'dailyLimit': dailyLimit,
       'monthlyLimit': monthlyLimit,
+      'registrationType': registrationType,
+      'isAdmin': isAdmin,
     };
   }
 
@@ -243,6 +251,8 @@ class Merchant {
       tier: map['tier'] ?? 'basic',
       dailyLimit: (map['dailyLimit'] ?? 5000000).toDouble(),
       monthlyLimit: (map['monthlyLimit'] ?? 50000000).toDouble(),
+      registrationType: map['registrationType'] ?? 'individual',
+      isAdmin: map['isAdmin'] ?? false,
     );
   }
 
@@ -277,6 +287,8 @@ class Merchant {
     String? tier,
     double? dailyLimit,
     double? monthlyLimit,
+    String? registrationType,
+    bool? isAdmin,
   }) {
     return Merchant(
       id: id ?? this.id,
@@ -309,6 +321,8 @@ class Merchant {
       tier: tier ?? this.tier,
       dailyLimit: dailyLimit ?? this.dailyLimit,
       monthlyLimit: monthlyLimit ?? this.monthlyLimit,
+      registrationType: registrationType ?? this.registrationType,
+      isAdmin: isAdmin ?? this.isAdmin,
     );
   }
 

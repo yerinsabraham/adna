@@ -3,18 +3,22 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Helper functions
+    // ========== HELPER FUNCTIONS ==========
+    
     function isAuthenticated() {
       return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'yerinssaibs@gmail.com';
     }
     
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function isValidFileSize() {
-      // Max file size: 5MB
-      return request.resource.size <= 5 * 1024 * 1024;
+    function isValidFileSize(maxSizeMB) {
+      return request.resource.size <= maxSizeMB * 1024 * 1024;
     }
     
     function isValidImageType() {
@@ -23,32 +27,159 @@ service firebase.storage {
     
     function isValidDocumentType() {
       return request.resource.contentType.matches('image/.*') || 
-             request.resource.contentType == 'application/pdf';
+             request.resource.contentType == 'application/pdf' ||
+             request.resource.contentType == 'application/msword' ||
+             request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
     
-    // KYC documents - only allow uploads by the merchant who owns the document
+    // ========== KYC DOCUMENTS ==========
+    // Merchants upload verification documents
     match /kyc/{userId}/{allPaths=**} {
-      // Allow read only if owner
-      allow read: if isOwner(userId);
+      // Merchant can read own docs, Admin can read all
+      allow read: if isOwner(userId) || isAdmin();
       
-      // Allow upload only if:
-      // 1. Authenticated user is the owner
-      // 2. File size is within limit (5MB)
-      // 3. File type is valid (images or PDF)
+      // Merchant can upload own docs (max 10MB)
       allow create: if isOwner(userId) && 
-                       isValidFileSize() && 
+                       isValidFileSize(10) && 
                        isValidDocumentType();
       
-      // Allow update/replace only by owner
+      // Merchant can update own docs
       allow update: if isOwner(userId) && 
-                       isValidFileSize() && 
+                       isValidFileSize(10) && 
                        isValidDocumentType();
       
-      // Prevent deletion (keep for audit trail)
-      allow delete: if false;
+      // Only admin can delete (for cleanup)
+      allow delete: if isAdmin();
     }
     
-    // Block all other paths
+    // ========== MERCHANT LOGOS ==========
+    // Business logos/branding
+    match /merchants/{merchantId}/logo/{fileName} {
+      // Anyone can read logos (public)
+      allow read: if true;
+      
+      // Merchant can upload own logo (max 2MB)
+      allow create, update: if isAuthenticated() && 
+                               isOwner(merchantId) &&
+                               isValidFileSize(2) && 
+                               isValidImageType();
+      
+      // Merchant can delete own logo
+      allow delete: if isOwner(merchantId) || isAdmin();
+    }
+    
+    // ========== TRANSACTION RECEIPTS ==========
+    // Generated receipts for transactions
+    match /receipts/{merchantId}/{receiptId} {
+      // Merchant can read own receipts, Admin can read all
+      allow read: if isOwner(merchantId) || isAdmin();
+      
+      // System/Admin generates receipts
+      allow create: if isAdmin();
+      
+      // No updates/deletes (immutable)
+      allow update, delete: if false;
+    }
+    
+    // ========== INVOICE DOCUMENTS ==========
+    // Generated invoices
+    match /invoices/{merchantId}/{invoiceId} {
+      // Merchant can read own invoices, customers can read public invoices
+      allow read: if isOwner(merchantId) || isAdmin() || true; // Public for now
+      
+      // Merchant can create own invoices
+      allow create: if isOwner(merchantId) && isValidFileSize(5);
+      
+      // Merchant can update own invoices
+      allow update: if isOwner(merchantId) && isValidFileSize(5);
+      
+      // Merchant can delete own invoices
+      allow delete: if isOwner(merchantId) || isAdmin();
+    }
+    
+    // ========== REPORT EXPORTS ==========
+    // Generated CSV/PDF reports
+    match /reports/{merchantId}/{reportId} {
+      // Merchant can read own reports
+      allow read: if isOwner(merchantId) || isAdmin();
+      
+      // System generates reports
+      allow create: if isOwner(merchantId) || isAdmin();
+      
+      // Merchant can delete own reports
+      allow delete: if isOwner(merchantId) || isAdmin();
+      
+      // No updates
+      allow update: if false;
+    }
+    
+    // ========== PAYMENT QR CODES ==========
+    // Generated QR codes for payments
+    match /qrcodes/{merchantId}/{qrCodeId} {
+      // Anyone can read QR codes (public)
+      allow read: if true;
+      
+      // Merchant can create own QR codes
+      allow create: if isOwner(merchantId) && 
+                       isValidFileSize(1) && 
+                       isValidImageType();
+      
+      // Merchant can delete own QR codes
+      allow delete: if isOwner(merchantId) || isAdmin();
+      
+      // No updates
+      allow update: if false;
+    }
+    
+    // ========== DISPUTE EVIDENCE ==========
+    // Evidence files for disputes
+    match /disputes/{disputeId}/{fileName} {
+      // Involved parties and admin can read
+      allow read: if isAuthenticated() || isAdmin();
+      
+      // Anyone can upload evidence (customers submitting disputes)
+      allow create: if isAuthenticated() && 
+                       isValidFileSize(10) && 
+                       isValidDocumentType();
+      
+      // No updates/deletes (evidence is immutable)
+      allow update, delete: if isAdmin();
+    }
+    
+    // ========== PROFILE PICTURES ==========
+    // User profile photos
+    match /profiles/{userId}/photo {
+      // Anyone can read profile pics
+      allow read: if true;
+      
+      // User can upload own photo
+      allow create, update: if isOwner(userId) && 
+                               isValidFileSize(2) && 
+                               isValidImageType();
+      
+      // User can delete own photo
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+    
+    // ========== WEBHOOK LOGS ==========
+    // Webhook delivery logs
+    match /webhookLogs/{merchantId}/{logId} {
+      // Merchant can read own logs
+      allow read: if isOwner(merchantId) || isAdmin();
+      
+      // System creates logs
+      allow create: if isAdmin();
+      
+      // No updates/deletes
+      allow update, delete: if false;
+    }
+    
+    // ========== BACKUP FILES (ADMIN ONLY) ==========
+    match /backups/{fileName} {
+      allow read, write: if isAdmin();
+    }
+    
+    // ========== BLOCK ALL OTHER PATHS ==========
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../providers/merchant_provider.dart';
+import 'registration_type_screen.dart';
 import 'business_info_screen.dart';
 import 'owner_info_screen.dart';
 import 'bank_account_screen.dart';
@@ -22,6 +23,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
   int _currentStep = 0;
 
   final List<String> _stepTitles = [
+    'Account Type',
     'Business Information',
     'Owner Information',
     'Bank Account',
@@ -35,8 +37,29 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
     super.dispose();
   }
 
+  bool _shouldSkipDocuments() {
+    final merchantProvider = Provider.of<MerchantProvider>(context, listen: false);
+    final registrationType = merchantProvider.onboardingData['registrationType'];
+    // Only Tier 3 (limited_company) needs to upload documents
+    return registrationType != 'limited_company';
+  }
+
   void _nextStep() {
-    if (_currentStep < 4) {
+    // Skip documents screen for Tier 1 and Tier 2
+    if (_currentStep == 3 && _shouldSkipDocuments()) {
+      // Jump from Bank Account (step 3) to Review & Submit (step 5)
+      setState(() {
+        _currentStep = 5;
+      });
+      _pageController.animateToPage(
+        5,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    
+    if (_currentStep < 5) {
       setState(() {
         _currentStep++;
       });
@@ -49,6 +72,20 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
   }
 
   void _previousStep() {
+    // Skip documents screen backwards for Tier 1 and Tier 2
+    if (_currentStep == 5 && _shouldSkipDocuments()) {
+      // Jump from Review & Submit (step 5) to Bank Account (step 3)
+      setState(() {
+        _currentStep = 3;
+      });
+      _pageController.animateToPage(
+        3,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    
     if (_currentStep > 0) {
       setState(() {
         _currentStep--;
@@ -101,8 +138,12 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                 });
               },
               children: [
+                RegistrationTypeScreen(
+                  onNext: _nextStep,
+                ),
                 BusinessInfoScreen(
                   onNext: _nextStep,
+                  onBack: _previousStep,
                 ),
                 OwnerInfoScreen(
                   onNext: _nextStep,
@@ -128,12 +169,21 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
   }
 
   Widget _buildProgressIndicator() {
+    final shouldSkipDocs = _shouldSkipDocuments();
+    final totalSteps = shouldSkipDocs ? 5 : 6; // 5 steps for Tier 1&2, 6 for Tier 3
+    
+    // Map actual step to display step (accounting for skipped documents screen)
+    int displayStep = _currentStep;
+    if (shouldSkipDocs && _currentStep == 5) {
+      displayStep = 4; // Show as 5th step if documents is skipped
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
-        children: List.generate(5, (index) {
-          final isCompleted = index < _currentStep;
-          final isCurrent = index == _currentStep;
+        children: List.generate(totalSteps, (index) {
+          final isCompleted = index < displayStep;
+          final isCurrent = index == displayStep;
 
           return Expanded(
             child: Row(
@@ -149,7 +199,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
                     ),
                   ),
                 ),
-                if (index < 4) const SizedBox(width: 4),
+                if (index < totalSteps - 1) const SizedBox(width: 4),
               ],
             ),
           );

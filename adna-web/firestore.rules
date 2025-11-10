@@ -1,0 +1,119 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'yerinssaibs@gmail.com';
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isMerchantOwner(merchantId) {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/merchants/$(merchantId)) &&
+             get(/databases/$(database)/documents/merchants/$(merchantId)).data.userId == request.auth.uid;
+    }
+    
+    // Merchants collection
+    match /merchants/{merchantId} {
+      // Users can read their own merchant data
+      // Admins can read all merchants
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.email == request.auth.token.email ||
+        isAdmin()
+      );
+      
+      // Users can create their own merchant profile
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.email == request.auth.token.email
+      );
+      
+      // Users can update their own merchant data (for profile updates)
+      // Admins can update any merchant (for approval/rejection)
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.email == request.auth.token.email ||
+        isAdmin()
+      );
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Transactions collection
+    match /transactions/{transactionId} {
+      // Users can read their own transactions
+      // Admins can read all transactions
+      allow read: if isSignedIn() && (
+        resource.data.merchantId == request.auth.uid || 
+        isAdmin()
+      );
+      
+      // Merchants can create transactions
+      allow create: if isSignedIn();
+      
+      // Admins and merchant owners can update transactions
+      allow update: if isSignedIn() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Only admins can delete transactions
+      allow delete: if isAdmin();
+    }
+    
+    // Payment links collection
+    match /paymentLinks/{linkId} {
+      // Anyone can read payment links (for public payment pages)
+      allow read: if true;
+      
+      // Merchants can create payment links
+      allow create: if isSignedIn();
+      
+      // Merchants can update their own links
+      allow update: if isSignedIn() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Merchants can delete their own links
+      allow delete: if isSignedIn() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // Settlements collection
+    match /settlements/{settlementId} {
+      // Merchants can read their own settlements
+      allow read: if isSignedIn() && (
+        resource.data.merchantId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Only system/admins can create settlements
+      allow create: if isAdmin();
+      
+      // Only admins can update settlements
+      allow update: if isAdmin();
+      
+      // No one can delete settlements (audit trail)
+      allow delete: if false;
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

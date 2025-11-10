@@ -13,10 +13,12 @@ import '../../widgets/common/custom_dropdown.dart';
 /// Business information screen - Step 1 of onboarding
 class BusinessInfoScreen extends StatefulWidget {
   final VoidCallback onNext;
+  final VoidCallback? onBack;
 
   const BusinessInfoScreen({
     super.key,
     required this.onNext,
+    this.onBack,
   });
 
   @override
@@ -70,6 +72,12 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
     _descriptionController.text = data['businessDescription'] ?? '';
     _selectedBusinessType = data['businessType'];
     _selectedIndustry = data['industry'];
+  }
+
+  bool _isTier1() {
+    final merchantProvider = Provider.of<MerchantProvider>(context, listen: false);
+    final registrationType = merchantProvider.onboardingData['registrationType'];
+    return registrationType == 'individual';
   }
 
   Future<void> _handleNext() async {
@@ -158,20 +166,27 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
                 });
               },),
             const SizedBox(height: 16),
-            // CAC Number
-            CustomTextField(
-              label: 'CAC Registration Number',
-              hint: 'Enter CAC number',
-              controller: _cacNumberController,validator: Validators.cacNumber,
-            ),
-            const SizedBox(height: 16),
-            // Tax ID
-            CustomTextField(
-              label: 'Tax Identification Number (TIN)',
-              hint: 'Enter TIN',
-              controller: _taxIdController,validator: Validators.tin,
-            ),
-            const SizedBox(height: 16),
+            
+            // CAC Number and TIN - Only for Tier 2 and Tier 3
+            if (!_isTier1()) ...[
+              // CAC Number
+              CustomTextField(
+                label: 'CAC Registration Number',
+                hint: 'Enter CAC number',
+                controller: _cacNumberController,
+                validator: Validators.cacNumber,
+              ),
+              const SizedBox(height: 16),
+              // Tax ID
+              CustomTextField(
+                label: 'Tax Identification Number (TIN)',
+                hint: 'Enter TIN',
+                controller: _taxIdController,
+                validator: Validators.tin,
+              ),
+              const SizedBox(height: 16),
+            ],
+            
             // Business Phone
             CustomTextField(
               label: 'Business Phone',
@@ -203,12 +218,35 @@ class _BusinessInfoScreenState extends State<BusinessInfoScreen> {
               maxLines: 4,validator: (value) => Validators.required(value, 'Business description'),
             ),
             const SizedBox(height: 32),
-            // Next Button
-            CustomButton(
-              text: 'Continue',
-              onPressed: _handleNext,
-              fullWidth: true,
-            ),
+            // Buttons
+            if (widget.onBack != null) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomButton(
+                      text: 'Back',
+                      onPressed: widget.onBack,
+                      variant: ButtonType.secondary,
+                      fullWidth: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomButton(
+                      text: 'Continue',
+                      onPressed: _handleNext,
+                      fullWidth: true,
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              CustomButton(
+                text: 'Continue',
+                onPressed: _handleNext,
+                fullWidth: true,
+              ),
+            ],
           ],
         ),
       ),

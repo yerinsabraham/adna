@@ -226,9 +226,10 @@ class MerchantProvider extends ChangeNotifier {
         updatedAt: DateTime.now(),
         approvedAt: null,
         approvedBy: null,
-        tier: AppConstants.tierBasic,
-        dailyLimit: AppConstants.basicDailyLimit,
-        monthlyLimit: AppConstants.basicMonthlyLimit,
+        tier: _onboardingData['tier'] ?? AppConstants.tierBasic,
+        dailyLimit: (_onboardingData['dailyLimit'] ?? AppConstants.basicDailyLimit).toDouble(),
+        monthlyLimit: (_onboardingData['monthlyLimit'] ?? AppConstants.basicMonthlyLimit).toDouble(),
+        registrationType: _onboardingData['registrationType'] ?? AppConstants.regTypeIndividual,
       );
 
       // Save to Firestore
@@ -243,6 +244,77 @@ class MerchantProvider extends ChangeNotifier {
       _setLoading(false);
       return true;
     } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  /// Create demo merchant account (for testing only)
+  Future<bool> createDemoMerchant(String userId, String email) async {
+    try {
+      print('🔵 Creating demo merchant for userId: $userId');
+      _setLoading(true);
+      _clearError();
+
+      // Create a pre-approved demo merchant
+      final demoMerchant = Merchant(
+        id: userId,
+        userId: userId,
+        email: email,
+        businessName: 'Demo Business Ltd',
+        cacNumber: 'RC1234567',
+        tin: 'TIN9876543',
+        category: 'Technology',
+        businessAddress: Address(
+          street: '123 Demo Street',
+          city: 'Lagos',
+          state: 'Lagos',
+        ),
+        businessPhone: '+2348012345678',
+        businessEmail: email,
+        ownerName: 'Demo User',
+        bvnOrNin: '12345678901',
+        dateOfBirth: '1990-01-01',
+        residentialAddress: Address(
+          street: '123 Demo Street',
+          city: 'Lagos',
+          state: 'Lagos',
+        ),
+        ownerPhone: '+2348012345678',
+        idType: 'BVN',
+        bankName: 'Access Bank',
+        accountNumber: '0123456789',
+        accountName: 'DEMO BUSINESS LTD',
+        accountType: 'Current',
+        kycStatus: 'approved', // Pre-approved for demo
+        documents: [
+          Document(
+            type: 'cac_certificate',
+            url: 'demo_url',
+            fileName: 'demo_cac.pdf',
+            uploadedAt: DateTime.now(),
+          ),
+        ],
+        tier: AppConstants.tierEnterprise, // Highest tier for testing
+        dailyLimit: AppConstants.getTierDetails(AppConstants.tierEnterprise)['dailyLimit'] as double,
+        monthlyLimit: AppConstants.getTierDetails(AppConstants.tierEnterprise)['monthlyLimit'] as double,
+        registrationType: 'limited_company',
+        isAdmin: true, // Grant admin access
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      print('🔵 Saving demo merchant to Firestore...');
+      // Save to Firestore
+      await _merchantRepository.createMerchant(demoMerchant);
+      _merchant = demoMerchant;
+
+      print('🟢 Demo merchant created successfully!');
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      print('🔴 Error creating demo merchant: $e');
       _setError(e.toString());
       _setLoading(false);
       return false;
